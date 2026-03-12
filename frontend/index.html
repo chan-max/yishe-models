@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yishe Models Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <div>
+        <div class="eyebrow">Yishe Models</div>
+        <h1>本地大模型控制台</h1>
+        <p>
+          一个独立于 `yishe-admin` 的模型管理 UI，用来查看本地模型、运行时节点和业务 API 编排状态。
+        </p>
+      </div>
+      <div class="hero-actions">
+        <button id="syncBtn" class="button primary">同步运行时</button>
+        <button id="refreshBtn" class="button ghost">刷新面板</button>
+      </div>
+    </header>
+
+    <section id="metrics" class="metric-grid"></section>
+
+    <section class="board-grid top-grid">
+      <article class="panel">
+        <div class="panel-header">
+          <h2>系统结构</h2>
+          <span>UI / Node / Python</span>
+        </div>
+        <div id="architecture" class="stack-list"></div>
+      </article>
+
+      <article class="panel accent-panel">
+        <div class="panel-header">
+          <h2>最近活动</h2>
+          <span>registry / runtime / api</span>
+        </div>
+        <div id="activities" class="activity-list"></div>
+      </article>
+    </section>
+
+    <section class="board-grid lower-grid">
+      <article class="panel wide-panel">
+        <div class="panel-header">
+          <h2>模型注册表</h2>
+          <span>Node API 统一编排</span>
+        </div>
+        <div id="modelTable" class="table-shell"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <h2>服务节点</h2>
+          <span>Node / Python</span>
+        </div>
+        <div id="providers" class="provider-list"></div>
+      </article>
+    </section>
+
+    <section class="board-grid lower-grid">
+      <article class="panel wide-panel">
+        <div class="panel-header">
+          <h2>对外 API 目录</h2>
+          <span>业务方统一接入</span>
+        </div>
+        <div id="endpoints" class="endpoint-list"></div>
+      </article>
+
+      <article class="panel roadmap-panel">
+        <div class="panel-header">
+          <h2>前进路径</h2>
+          <span>下一步补真实模型</span>
+        </div>
+        <ol class="roadmap-list">
+          <li>把 `services/python-runtime/server.py` 接到真实模型脚本。</li>
+          <li>在 Node API 中补模型增删改和鉴权。</li>
+          <li>把推理日志、GPU 信息和调试器接进当前面板。</li>
+          <li>把 `examples` 中的能力适配成统一调用协议。</li>
+        </ol>
+      </article>
+    </section>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

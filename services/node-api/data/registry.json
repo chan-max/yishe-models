@@ -1,0 +1,81 @@
+{
+  "models": [
+    {
+      "id": "qwen2.5-7b-instruct",
+      "name": "Qwen 2.5 7B Instruct",
+      "family": "Qwen",
+      "provider": "Local GPU Worker",
+      "runtime": "python",
+      "endpoint": "/api/llm/chat",
+      "status": "running",
+      "mode": "chat",
+      "updatedAt": "2026-03-12 15:10",
+      "tags": ["quantized", "local", "chat"]
+    },
+    {
+      "id": "bge-m3",
+      "name": "BGE M3",
+      "family": "BGE",
+      "provider": "Embedding Worker",
+      "runtime": "python",
+      "endpoint": "/api/llm/embedding",
+      "status": "running",
+      "mode": "embedding",
+      "updatedAt": "2026-03-12 14:30",
+      "tags": ["embedding", "rerank"]
+    },
+    {
+      "id": "cosyvoice-clone",
+      "name": "CosyVoice Clone",
+      "family": "CosyVoice",
+      "provider": "Voice Worker",
+      "runtime": "python",
+      "endpoint": "/api/llm/voice/clone",
+      "status": "degraded",
+      "mode": "tts",
+      "updatedAt": "2026-03-12 13:57",
+      "tags": ["voice-clone", "audio"]
+    }
+  ],
+  "providers": [
+    {
+      "id": "provider-node",
+      "name": "Node Business API",
+      "host": "http://127.0.0.1:8787",
+      "protocol": "HTTP JSON",
+      "queueDepth": 12,
+      "status": "online"
+    },
+    {
+      "id": "provider-python",
+      "name": "Python Runtime",
+      "host": "http://127.0.0.1:8001",
+      "protocol": "HTTP JSON",
+      "queueDepth": 3,
+      "status": "warning"
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "endpoint-chat",
+      "method": "POST",
+      "path": "/api/llm/chat",
+      "target": "qwen2.5-7b-instruct",
+      "description": "Unified chat completion entrypoint for local conversational models."
+    },
+    {
+      "id": "endpoint-embedding",
+      "method": "POST",
+      "path": "/api/llm/embedding",
+      "target": "bge-m3",
+      "description": "Embedding and semantic retrieval endpoint for internal services."
+    },
+    {
+      "id": "endpoint-voice",
+      "method": "POST",
+      "path": "/api/llm/voice/clone",
+      "target": "cosyvoice-clone",
+      "description": "Voice clone and synthesis endpoint routed to the Python audio worker."
+    }
+  ]
+}

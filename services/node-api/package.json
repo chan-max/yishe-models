@@ -1,0 +1,9 @@
+{
+  "name": "yishe-node-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Business API gateway for local model orchestration.",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
