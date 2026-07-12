@@ -8,7 +8,6 @@ dist
 *.md
 !package.json
 !package-lock.json
-models
 frontend
 services
 examples

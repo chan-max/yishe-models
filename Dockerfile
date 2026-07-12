@@ -39,8 +39,11 @@ RUN npm install --production --ignore-scripts && \
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Create models cache directory
-RUN mkdir -p /app/models && chown -R models:models /app
+# Copy pre-downloaded models
+COPY models/ ./models/
+
+# Fix ownership
+RUN chown -R models:models /app
 
 # Switch to non-root user
 USER models

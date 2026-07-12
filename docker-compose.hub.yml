@@ -4,8 +4,6 @@ services:
     container_name: yishe-models
     ports:
       - "8900:8900"
-    volumes:
-      - ./models:/app/models
     environment:
       - PORT=8900
       - NODE_ENV=production
