@@ -39,10 +39,7 @@ RUN npm install --production --ignore-scripts && \
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy pre-downloaded models
-COPY models/ ./models/
-
-# Fix ownership
+# Fix ownership (models will be downloaded at startup by @huggingface/transformers)
 RUN chown -R models:models /app
 
 # Switch to non-root user
@@ -52,7 +49,7 @@ USER models
 EXPOSE 8900
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
   CMD curl -f http://localhost:8900/health || exit 1
 
 # Start
