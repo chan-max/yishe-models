@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -17,14 +17,15 @@ COPY src/ ./src/
 RUN npm run build
 
 # Stage 2: Production
-FROM node:22-alpine
+FROM node:22-slim
 
 # Install ca-certificates for HTTPS model downloads
-RUN apk add --no-cache ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1001 -S models && \
-    adduser -S models -u 1001 -G models
+RUN groupadd -g 1001 models && \
+    useradd -u 1001 -g models -s /bin/false models
 
 WORKDIR /app
 
