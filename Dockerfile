@@ -20,7 +20,7 @@ RUN npm run build
 FROM node:22-slim
 
 # Install ca-certificates for HTTPS model downloads
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -50,7 +50,7 @@ EXPOSE 8900
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8900/health || exit 1
+  CMD curl -f http://localhost:8900/health || exit 1
 
 # Start
 CMD ["node", "dist/index.js"]
