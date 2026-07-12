@@ -5,6 +5,7 @@ import embeddingsRouter from "./routes/embeddings.js";
 import imageEmbeddingsRouter from "./routes/image-embeddings.js";
 import modelsRouter from "./routes/models.js";
 import { preloadModel } from "./services/embedding.js";
+import { preloadImageModel } from "./services/image-embedding.js";
 
 const app = express();
 
@@ -42,10 +43,13 @@ async function main() {
   console.log("  Yishe Models - Local AI Inference Server");
   console.log("=".repeat(50));
 
-  // Preload model in background
-  console.log("[server] Preloading embedding model...");
+  // Preload models in background
+  console.log("[server] Preloading embedding models...");
   preloadModel().catch((err) => {
-    console.error("[server] Model preload failed:", err?.message || err);
+    console.error("[server] Text model preload failed:", err?.message || err);
+  });
+  preloadImageModel().catch((err) => {
+    console.error("[server] Image model preload failed:", err?.message || err);
   });
 
   app.listen(config.port, config.host, () => {
