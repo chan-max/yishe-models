@@ -1,0 +1,279 @@
+name: Build and Push Docker Image
+
+# 说明：
+# 1. 需要在 GitHub Repository Settings -> Secrets and variables -> Actions 中配置以下 secrets:
+#    - DOCKER_USERNAME: Docker Hub 用户名（例如：1sdesign）
+#    - DOCKER_PASSWORD: Docker Hub 密码或访问令牌（Access Token）
+#    - SERVER_HOST: 服务器地址（如果不设置，将跳过自动部署）
+#    - SERVER_USERNAME: SSH 用户名
+#    - SERVER_PASSWORD: SSH 密码（如果使用 SSH 密钥，可留空）
+#    - SERVER_SSH_KEY: SSH 私钥（推荐使用）
+#    - SERVER_DEPLOY_PATH: 服务器上项目路径（可选，默认为 /workspace/yishe-models）
+#    - SERVER_PORT: SSH 端口（可选，默认为 22）
+# 2. 工作流程：
+#    - 当代码推送到 main 分支且涉及关键文件变更时自动触发
+#    - 当推送 v* 版本标签时触发（如 v0.1.0）
+#    - 从 package.json 读取版本号
+#    - 构建 Docker 镜像，标签为版本号和 latest
+#    - 推送到 Docker Hub
+#    - 通过 SSH 连接到服务器，拉取最新镜像并重启服务
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker-compose.hub.yml'
+      - 'src/**'
+      - '.github/workflows/docker-build.yml'
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read version from package.json
+        id: package-version
+        run: |
+          # 优先使用 git tag 中的版本号（如 v0.1.0 -> 0.1.0）
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            echo "📦 使用 tag 版本: $VERSION"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            echo "📦 使用 package.json 版本: $VERSION"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/yishe-models
+          tags: |
+            type=raw,value=${{ steps.package-version.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify published image can be pulled
+        run: |
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/yishe-models:${{ steps.package-version.outputs.version }}"
+          echo "🔎 验证镜像是否已可从 Docker Hub 拉取: $IMAGE"
+
+          for attempt in 1 2 3 4 5; do
+            echo "⏳ 第 ${attempt}/5 次验证镜像..."
+            docker image rm -f "$IMAGE" >/dev/null 2>&1 || true
+
+            if docker pull --platform linux/amd64 "$IMAGE"; then
+              echo "✅ 镜像验证成功，继续部署"
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 5 ]; then
+              wait_seconds=$((attempt * 15))
+              echo "⚠️ 镜像暂时还不可拉取，${wait_seconds}s 后重试..."
+              sleep "$wait_seconds"
+            fi
+          done
+
+          echo "❌ 镜像推送成功后仍无法从 Docker Hub 拉取，已停止部署"
+          exit 1
+
+      - name: Summary
+        run: |
+          echo "## 🐳 Docker 镜像构建成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**镜像名称**: \`${{ secrets.DOCKER_USERNAME }}/yishe-models\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**版本标签**: \`${{ steps.package-version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 使用方式" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ secrets.DOCKER_USERNAME }}/yishe-models:${{ steps.package-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker run -d -p 8900:8900 ${{ secrets.DOCKER_USERNAME }}/yishe-models:${{ steps.package-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check deployment configuration
+        id: check-deploy
+        run: |
+          if [ -z "$SERVER_HOST" ]; then
+            echo "⚠️  SERVER_HOST 未配置，跳过自动部署"
+            echo "skip_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ 自动部署配置完整，将执行自动部署"
+            echo "skip_deploy=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+
+      - name: Deploy to Server
+        id: deploy
+        if: steps.check-deploy.outputs.skip_deploy == 'false'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          envs: DEPLOY_PATH,DOCKER_USERNAME,IMAGE_TAG
+          script: |
+            # 设置部署路径
+            DEPLOY_PATH="${DEPLOY_PATH:-/workspace/yishe-models}"
+            DOCKER_USERNAME="${DOCKER_USERNAME:-1sdesign}"
+            IMAGE_TAG="${IMAGE_TAG:-latest}"
+            IMAGE_NAME="${DOCKER_USERNAME}/yishe-models:${IMAGE_TAG}"
+            COMPOSE_FILE="docker-compose.hub.yml"
+
+            echo "🚀 开始部署到服务器..."
+            echo "📂 部署路径: $DEPLOY_PATH"
+            echo "🖼️ 部署镜像: $IMAGE_NAME"
+
+            # 检查 docker compose 命令
+            if docker compose version >/dev/null 2>&1; then
+              compose() { docker compose "$@"; }
+            elif command -v docker-compose >/dev/null 2>&1; then
+              compose() { docker-compose "$@"; }
+            else
+              echo "❌ 错误: 未安装 Docker Compose"
+              exit 1
+            fi
+
+            # 创建部署目录
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              echo "📁 目录不存在，正在创建: $DEPLOY_PATH"
+              mkdir -p "$DEPLOY_PATH"
+            fi
+
+            cd "$DEPLOY_PATH" || { echo "❌ 无法进入目录 $DEPLOY_PATH"; exit 1; }
+            mkdir -p models
+
+            # 重写 Compose 文件
+            echo "🛠️ 正在生成最新的 docker-compose.hub.yml..."
+            cat > "$COMPOSE_FILE" << 'COMPOSE_EOF'
+            services:
+              yishe-models:
+                image: ${DOCKER_USERNAME:-1sdesign}/yishe-models:${IMAGE_TAG:-latest}
+                container_name: yishe-models
+                restart: unless-stopped
+                ports:
+                  - "8900:8900"
+                environment:
+                  - PORT=8900
+                  - NODE_ENV=production
+                volumes:
+                  - ./models:/app/models
+                networks:
+                  - yishe-network
+                healthcheck:
+                  test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8900/health"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+                  start_period: 60s
+
+            networks:
+              yishe-network:
+                driver: bridge
+            COMPOSE_EOF
+            echo "✅ docker-compose.hub.yml 已更新"
+
+            # 拉取最新镜像
+            echo "📥 正在拉取最新镜像..."
+            pull_success=0
+            for attempt in 1 2 3 4 5; do
+              if docker pull "$IMAGE_NAME"; then
+                pull_success=1
+                break
+              fi
+              if [ "$attempt" -lt 5 ]; then
+                wait_seconds=$((attempt * 15))
+                echo "⚠️ 第 ${attempt}/5 次拉取失败，${wait_seconds}s 后重试..."
+                sleep "$wait_seconds"
+              fi
+            done
+
+            if [ "$pull_success" -ne 1 ]; then
+              echo "❌ 拉取镜像失败"
+              exit 1
+            fi
+
+            # 重启服务
+            echo "🔄 正在重启服务..."
+            compose -f "$COMPOSE_FILE" up -d --force-recreate
+
+            sleep 5
+
+            # 检查状态
+            echo "🔍 检查容器状态..."
+            if compose -f "$COMPOSE_FILE" ps | grep -q "Up"; then
+              echo "✅ 服务部署成功！"
+              compose -f "$COMPOSE_FILE" ps
+            else
+              echo "❌ 容器未正常运行"
+              compose -f "$COMPOSE_FILE" logs --tail=50
+              exit 1
+            fi
+
+            # 清理旧镜像
+            echo "🧹 清理旧版本镜像..."
+            docker images "${DOCKER_USERNAME}/yishe-models" --format '{{.Repository}}:{{.Tag}}' \
+              | grep -v -F "$IMAGE_NAME" \
+              | xargs -r docker image rm -f || true
+            docker image prune -f || true
+
+            echo "🎉 部署完成！"
+        env:
+          DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH || '/workspace/yishe-models' }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          IMAGE_TAG: ${{ steps.package-version.outputs.version }}
+
+      - name: Deployment Skipped Summary
+        if: steps.check-deploy.outputs.skip_deploy == 'true'
+        run: |
+          echo "## ⚠️ 自动部署已跳过" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "未配置 \`SERVER_HOST\`，因此本次仅构建并推送 Docker 镜像，不执行服务器部署。" >> $GITHUB_STEP_SUMMARY
+
+      - name: Deploy Summary
+        if: steps.deploy.outcome == 'success'
+        run: |
+          echo "## ✅ 服务器部署成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**服务器**: \`${{ secrets.SERVER_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**版本**: \`${{ steps.package-version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✨ 服务已自动更新并重启" >> $GITHUB_STEP_SUMMARY

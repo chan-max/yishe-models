@@ -1,0 +1,23 @@
+{
+  "name": "yishe-models",
+  "version": "0.1.1",
+  "description": "Yishe Models - Local AI Model Inference Server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:prod": "node dist/index.js"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.5.2",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.2",
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

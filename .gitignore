@@ -19,3 +19,10 @@ __pycache__/
 
 # OS
 Thumbs.db
+
+# Node.js
+node_modules/
+dist/
+
+# Model cache
+models/
