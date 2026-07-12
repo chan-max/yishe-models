@@ -3,6 +3,9 @@ import { config } from "../config.js";
 
 env.cacheDir = config.modelsDir;
 
+// Use HF mirror for China network
+env.remoteHost = process.env.HF_REMOTE_HOST || "https://hf-mirror.com";
+
 let imageFeatureExtractor: any = null;
 let loadingPromise: Promise<any> | null = null;
 

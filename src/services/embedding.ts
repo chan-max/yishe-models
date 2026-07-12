@@ -4,6 +4,9 @@ import { config } from '../config.js';
 // Configure where models are cached
 env.cacheDir = config.modelsDir;
 
+// Use HF mirror for China network
+env.remoteHost = process.env.HF_REMOTE_HOST || 'https://hf-mirror.com';
+
 // Lazy-loaded pipeline instance
 let featureExtractor: any = null;
 let loadingPromise: Promise<any> | null = null;
