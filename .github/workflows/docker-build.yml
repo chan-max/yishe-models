@@ -178,7 +178,6 @@ jobs:
             fi
 
             cd "$DEPLOY_PATH" || { echo "❌ 无法进入目录 $DEPLOY_PATH"; exit 1; }
-            mkdir -p models
 
             # 重写 Compose 文件
             echo "🛠️ 正在生成最新的 docker-compose.hub.yml..."
@@ -193,16 +192,14 @@ jobs:
                 environment:
                   - PORT=8900
                   - NODE_ENV=production
-                volumes:
-                  - ./models:/app/models
                 networks:
                   - yishe-network
                 healthcheck:
-                  test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8900/health"]
+                  test: ["CMD", "curl", "-f", "http://localhost:8900/health"]
                   interval: 30s
                   timeout: 10s
                   retries: 3
-                  start_period: 60s
+                  start_period: 120s
 
             networks:
               yishe-network:
