@@ -3,9 +3,11 @@ import { config } from "./config.js";
 import healthRouter from "./routes/health.js";
 import embeddingsRouter from "./routes/embeddings.js";
 import imageEmbeddingsRouter from "./routes/image-embeddings.js";
+import textEmbeddingsRouter from "./routes/text-embeddings.js";
 import modelsRouter from "./routes/models.js";
 import { preloadModel } from "./services/embedding.js";
 import { preloadImageModel } from "./services/image-embedding.js";
+import { preloadClipTextModel } from "./services/clip-text-embedding.js";
 
 const app = express();
 
@@ -28,6 +30,7 @@ app.use((_req, res, next) => {
 app.use(healthRouter);
 app.use(embeddingsRouter);
 app.use(imageEmbeddingsRouter);
+app.use(textEmbeddingsRouter);
 app.use(modelsRouter);
 
 // 404
@@ -51,6 +54,9 @@ async function main() {
   preloadImageModel().catch((err) => {
     console.error("[server] Image model preload failed:", err?.message || err);
   });
+  preloadClipTextModel().catch((err) => {
+    console.error("[server] CLIP text model preload failed:", err?.message || err);
+  });
 
   app.listen(config.port, config.host, () => {
     console.log(`[server] Listening on http://${config.host}:${config.port}`);
@@ -60,6 +66,9 @@ async function main() {
     );
     console.log(
       `[server] Image embeddings: POST http://${config.host}:${config.port}/v1/image-embeddings`,
+    );
+    console.log(
+      `[server] Text embeddings (CLIP): POST http://${config.host}:${config.port}/v1/text-embeddings`,
     );
     console.log(
       `[server] Models: GET http://${config.host}:${config.port}/v1/models`,
