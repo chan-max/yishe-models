@@ -26,3 +26,7 @@ dist/
 
 # Model cache
 models/
+models_new/
+test-clip/
+hfd.sh
+metadata.json
