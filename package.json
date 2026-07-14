@@ -1,6 +1,6 @@
 {
   "name": "yishe-models",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Yishe Models - Local AI Model Inference Server",
   "private": true,
   "type": "module",
