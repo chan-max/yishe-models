@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { embedImages, getImageModelName } from "../services/image-embedding.js";
+import { inferenceQueue, QueueFullError } from "../services/inference-queue.js";
 import type {
   ImageEmbeddingRequest,
   ImageEmbeddingResponse,
@@ -39,7 +40,7 @@ router.post("/v1/image-embeddings", async (req: Request, res: Response) => {
     }
 
     const model = body.model || getImageModelName();
-    const embeddings = await embedImages(normalizedImages);
+    const embeddings = await inferenceQueue.run(() => embedImages(normalizedImages));
 
     const response: ImageEmbeddingResponse = {
       object: "list",
@@ -57,6 +58,12 @@ router.post("/v1/image-embeddings", async (req: Request, res: Response) => {
 
     res.json(response);
   } catch (error: any) {
+    if (error instanceof QueueFullError) {
+      res.status(503).json({
+        error: { message: error.message, type: "server_overloaded" },
+      });
+      return;
+    }
     console.error("[image-embeddings] Error:", error?.message || error);
     res.status(500).json({
       error: {

@@ -10,5 +10,5 @@ export const config = {
   defaultImageModel:
     process.env.DEFAULT_IMAGE_MODEL || "Xenova/clip-vit-base-patch32",
   maxBatchSize: parseInt(process.env.MAX_BATCH_SIZE || "128", 10),
-  maxImageBatchSize: parseInt(process.env.MAX_IMAGE_BATCH_SIZE || "16", 10),
+  maxImageBatchSize: parseInt(process.env.MAX_IMAGE_BATCH_SIZE || "4", 10),
 };

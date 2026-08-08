@@ -64,13 +64,12 @@ export async function embed(texts: string[]): Promise<number[][]> {
   const batchSize = config.maxBatchSize;
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize);
-    const outputs = await Promise.all(
-      batch.map(async (text) => {
-        const output = await pipe(text, { pooling: 'mean', normalize: true });
-        return Array.from(output.data) as number[];
-      })
-    );
-    results.push(...outputs);
+    // Keep inference sequential. Promise.all here creates a large temporary
+    // tensor set when callers submit a large batch.
+    for (const text of batch) {
+      const output = await pipe(text, { pooling: 'mean', normalize: true });
+      results.push(Array.from(output.data) as number[]);
+    }
   }
 
   return results;

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { embed, isModelLoaded, getModelName } from '../services/embedding.js';
+import { inferenceQueue, QueueFullError } from '../services/inference-queue.js';
 import type { EmbeddingRequest, EmbeddingResponse } from '../types/embedding.js';
 
 const router = Router();
@@ -22,7 +23,7 @@ router.post('/v1/embeddings', async (req: Request, res: Response) => {
     }
 
     const model = body.model || getModelName();
-    const embeddings = await embed(texts);
+    const embeddings = await inferenceQueue.run(() => embed(texts));
 
     const response: EmbeddingResponse = {
       object: 'list',
@@ -40,6 +41,12 @@ router.post('/v1/embeddings', async (req: Request, res: Response) => {
 
     res.json(response);
   } catch (error: any) {
+    if (error instanceof QueueFullError) {
+      res.status(503).json({
+        error: { message: error.message, type: 'server_overloaded' },
+      });
+      return;
+    }
     console.error('[embeddings] Error:', error?.message || error);
     res.status(500).json({
       error: {

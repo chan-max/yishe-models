@@ -4,6 +4,7 @@ import {
   isClipTextModelLoaded,
   getClipTextModelName,
 } from "../services/clip-text-embedding.js";
+import { inferenceQueue, QueueFullError } from "../services/inference-queue.js";
 import type { EmbeddingRequest, EmbeddingResponse } from "../types/embedding.js";
 
 const router = Router();
@@ -32,7 +33,7 @@ router.post("/v1/text-embeddings", async (req: Request, res: Response) => {
     }
 
     const model = body.model || getClipTextModelName();
-    const embeddings = await embedTexts(texts);
+    const embeddings = await inferenceQueue.run(() => embedTexts(texts));
 
     const response: EmbeddingResponse = {
       object: "list",
@@ -53,6 +54,12 @@ router.post("/v1/text-embeddings", async (req: Request, res: Response) => {
 
     res.json(response);
   } catch (error: any) {
+    if (error instanceof QueueFullError) {
+      res.status(503).json({
+        error: { message: error.message, type: "server_overloaded" },
+      });
+      return;
+    }
     console.error("[text-embeddings] Error:", error?.message || error);
     res.status(500).json({
       error: {

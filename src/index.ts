@@ -11,8 +11,8 @@ import { preloadClipTextModel } from "./services/clip-text-embedding.js";
 
 const app = express();
 
-// Middleware
-app.use(express.json({ limit: "25mb" }));
+// Reject oversized payloads before they can create large inference jobs.
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "8mb" }));
 
 // CORS
 app.use((_req, res, next) => {
@@ -46,17 +46,14 @@ async function main() {
   console.log("  Yishe Models - Local AI Inference Server");
   console.log("=".repeat(50));
 
-  // Preload models in background
+  // Load models one at a time to avoid a startup memory spike.
   console.log("[server] Preloading embedding models...");
-  preloadModel().catch((err) => {
-    console.error("[server] Text model preload failed:", err?.message || err);
-  });
-  preloadImageModel().catch((err) => {
-    console.error("[server] Image model preload failed:", err?.message || err);
-  });
-  preloadClipTextModel().catch((err) => {
-    console.error("[server] CLIP text model preload failed:", err?.message || err);
-  });
+  preloadModel()
+    .then(() => preloadImageModel())
+    .then(() => preloadClipTextModel())
+    .catch((err) => {
+      console.error("[server] Model preload failed:", err?.message || err);
+    });
 
   app.listen(config.port, config.host, () => {
     console.log(`[server] Listening on http://${config.host}:${config.port}`);

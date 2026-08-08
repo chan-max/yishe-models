@@ -5,6 +5,7 @@ import {
   getImageModelName,
 } from "../services/image-embedding.js";
 import { config } from "../config.js";
+import { inferenceQueue } from "../services/inference-queue.js";
 
 const router = Router();
 const startTime = Date.now();
@@ -20,6 +21,10 @@ router.get("/health", (_req: Request, res: Response) => {
     models,
     modelLoaded: isModelLoaded(),
     imageModelLoaded: isImageModelLoaded(),
+    inference: {
+      active: inferenceQueue.activeCount,
+      queued: inferenceQueue.pendingCount,
+    },
     uptime: Math.floor((Date.now() - startTime) / 1000),
     env: config.nodeEnv,
   });
