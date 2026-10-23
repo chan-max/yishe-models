@@ -16,21 +16,7 @@ COPY src/ ./src/
 # Build TypeScript
 RUN npm run build
 
-# Stage 2: Download models
-# Actions Runner (国外) 直连 HuggingFace 官方最快最稳
-# 国内服务器部署时如需走 hf-mirror，在 docker run/compose 里覆写 HF_REMOTE_HOST 即可
-FROM node:22-slim AS model-downloader
-
-WORKDIR /app
-
-COPY package.json package-lock.json* ./
-RUN npm install --ignore-scripts
-
-COPY scripts/download-models.js ./scripts/
-
-RUN MODELS_DIR=/app/models node scripts/download-models.js
-
-# Stage 3: Production
+# Stage 2: Production
 FROM node:22-slim
 
 # Install ca-certificates
@@ -53,8 +39,14 @@ RUN npm install --production --ignore-scripts && \
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy downloaded models
-COPY --from=model-downloader /app/models ./models
+# 模型随仓库提供，构建期不再联网下载（无需 HuggingFace 访问）
+# 大 ONNX 以 .part-* 分片提交（GitHub 单文件 100MB 限制），此处还原
+COPY models ./models
+
+RUN cd /app/models/mobileclip2-s2/onnx && \
+    cat vision_model.onnx.part-* > vision_model.onnx && \
+    cat text_model_int8.onnx.part-* > text_model_int8.onnx && \
+    rm -f ./*.part-*
 
 # Fix ownership
 RUN chown -R models:models /app

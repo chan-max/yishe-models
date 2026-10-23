@@ -1,21 +1,18 @@
-import { AutoProcessor, AutoModel, RawImage, env } from "@huggingface/transformers";
+import {
+  AutoProcessor,
+  CLIPVisionModelWithProjection,
+  RawImage,
+} from "@huggingface/transformers";
 import { config } from "../config.js";
-
-env.cacheDir = config.modelsDir;
-
-// Use HF mirror for China network
-env.remoteHost = process.env.HF_REMOTE_HOST || "https://hf-mirror.com";
 
 let imageModel: any = null;
 let imageProcessor: any = null;
 let loadingPromise: Promise<{ processor: any; model: any }> | null = null;
 
 /**
- * SigLIP 说明：vision_model.onnx 输出 last_hidden_state [batch,196,768] 与
- * pooler_output [batch,768]。pooler_output 即共享图文空间的图像嵌入
- * （SigLIP 无独立投影头，与文本塔的 pooler_output 对称）。
- * 不能用 image-feature-extraction pipeline 的默认输出（会返回原始像素值），
- * 必须显式取 pooler_output。
+ * MobileCLIP2-S2 说明：vision_model.onnx 输入 [batch,3,256,256] float32，
+ * 输出 image_embeds [batch,512]（未归一化，共享图文空间）。相比 SigLIP-base
+ * 权重 136MB（原 177MB fp16），算力约 1/8，单张耗时从 1.5s 降到 0.25s 量级。
  */
 async function getModelAndProcessor() {
   if (imageModel && imageProcessor) return { processor: imageProcessor, model: imageModel };
@@ -23,29 +20,12 @@ async function getModelAndProcessor() {
 
   loadingPromise = (async () => {
     console.log(`[image-embedding] Loading model: ${config.defaultImageModel}`);
-    console.log(`[image-embedding] Cache dir: ${config.modelsDir}`);
+    console.log(`[image-embedding] Model dir: ${config.modelsDir}`);
     const start = Date.now();
 
-    const loadedModel = await AutoModel.from_pretrained(
+    const loadedModel = await CLIPVisionModelWithProjection.from_pretrained(
       config.defaultImageModel,
-      {
-        model_file_name: "vision_model",
-        // 服务器内存有限（可用 <1G），fp16 将内存占用减半，检索质量损失可忽略
-        dtype: "fp16",
-        progress_callback: (progress: any) => {
-          if (progress.status === "downloading") {
-            const pct = progress.progress ?? 0;
-            process.stdout.write(
-              `\r[image-embedding] Downloading: ${pct.toFixed(1)}%`,
-            );
-          }
-          if (progress.status === "done") {
-            console.log(
-              `\n[image-embedding] Download complete: ${progress.file}`,
-            );
-          }
-        },
-      },
+      { model_file_name: "vision_model", dtype: "fp32" },
     );
 
     const loadedProcessor = await AutoProcessor.from_pretrained(
@@ -99,10 +79,10 @@ async function toRawImage(input: string): Promise<RawImage> {
   return RawImage.fromBlob(blob);
 }
 
-/** 从 pooler_output 张量切出每条向量并 L2 归一化 */
-function normalizePooler(pooled: any, expectedCount: number): number[][] {
-  const dims = pooled?.dims || [];
-  const values = Array.from(pooled?.data || []) as number[];
+/** 从 image_embeds 张量切出每条向量并 L2 归一化 */
+function normalizeEmbeds(embeds: any, expectedCount: number): number[][] {
+  const dims = embeds?.dims || [];
+  const values = Array.from(embeds?.data || []) as number[];
 
   if (!values.length) return [];
 
@@ -123,7 +103,7 @@ function normalizePooler(pooled: any, expectedCount: number): number[][] {
   }
 
   throw new Error(
-    `unexpected pooler_output tensor shape: dims=${JSON.stringify(dims)}, expected=${expectedCount}`,
+    `unexpected image_embeds tensor shape: dims=${JSON.stringify(dims)}, expected=${expectedCount}`,
   );
 }
 
@@ -143,7 +123,7 @@ export async function embedImages(
       const image = await toRawImage(inputs[i]);
       const modelInputs = await processor(image);
       const output = await model(modelInputs);
-      const vectors = normalizePooler((output as any).pooler_output, 1);
+      const vectors = normalizeEmbeds((output as any).image_embeds, 1);
       results[i] = vectors[0] || null;
     } catch (err: any) {
       // 单张失败不阻塞整批；记录原因供上层判死链

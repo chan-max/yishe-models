@@ -24,8 +24,10 @@ Thumbs.db
 node_modules/
 dist/
 
-# Model cache
-models/
+# Model cache（models/ 下的推理模型随仓库提交，供镜像直接打包）
+# 超过 GitHub 100MB 单文件上限的 ONNX 以 .part-* 分片提交，构建/本地用 npm run models:assemble 还原
+models/*/onnx/vision_model.onnx
+models/*/onnx/text_model_int8.onnx
 models_new/
 test-clip/
 hfd.sh

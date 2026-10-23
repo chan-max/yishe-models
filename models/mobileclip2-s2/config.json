@@ -1,0 +1,7 @@
+{
+  "model_type": "clip_vision_model",
+  "hidden_size": 512,
+  "image_size": 256,
+  "num_channels": 3,
+  "projection_dim": 512
+}

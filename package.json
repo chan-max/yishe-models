@@ -1,6 +1,6 @@
 {
   "name": "yishe-models",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "Yishe Models - Local AI Model Inference Server",
   "private": true,
   "type": "module",
@@ -8,11 +8,14 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "start:prod": "node dist/index.js"
+    "start:prod": "node dist/index.js",
+    "models:assemble": "cd models/mobileclip2-s2/onnx && cat vision_model.onnx.part-* > vision_model.onnx && cat text_model_int8.onnx.part-* > text_model_int8.onnx"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.5.2",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "onnxruntime-node": "^1.21.0",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.2",
