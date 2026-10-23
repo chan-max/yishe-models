@@ -2,21 +2,28 @@ services:
   yishe-models:
     image: ${DOCKER_USERNAME:-1sdesign}/yishe-models:${IMAGE_TAG:-latest}
     container_name: yishe-models
+    restart: unless-stopped
     ports:
       - "8900:8900"
     environment:
       - PORT=8900
       - NODE_ENV=production
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8900/health"]
-      interval: 30s
-      timeout: 10s
-      start_period: 120s
-      retries: 3
+      # 单并发 + 有限队列，避免推理拖垮服务器
+      - INFERENCE_CONCURRENCY=1
+      - INFERENCE_MAX_QUEUE=8
+    # 资源硬上限：防止模型推理吃满整机
+    cpus: 1.5
+    mem_limit: 2g
     networks:
       - yishe-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8900/health', r => process.exit(r.statusCode===200?0:1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
 networks:
+  # 与 yishe-server 共用同一个外部网络，保证容器名可互相解析
   yishe-network:
-    driver: bridge
+    external: true
