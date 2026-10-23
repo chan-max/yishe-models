@@ -42,16 +42,25 @@ router.post("/v1/image-embeddings", async (req: Request, res: Response) => {
     const model = body.model || getImageModelName();
     const embeddings = await inferenceQueue.run(() => embedImages(normalizedImages));
 
-    const response: ImageEmbeddingResponse = {
-      object: "list",
-      data: embeddings.map((embedding, index) => ({
+    // embeddings 与 normalizedImages 等长；单张失败为 null（死链/损坏），
+    // 用空向量占位并在 failedIndexes 中标注，供调用方判死链永久隔离。
+    const failedIndexes: number[] = [];
+    const data = embeddings.map((embedding, index) => {
+      if (!embedding || embedding.length === 0) failedIndexes.push(index);
+      return {
         object: "embedding" as const,
         index,
-        embedding,
-      })),
+        embedding: embedding ?? [],
+      };
+    });
+
+    const response = {
+      object: "list",
+      data,
       model,
+      failedIndexes,
       usage: {
-        image_count: normalizedImages.length,
+        image_count: normalizedImages.length - failedIndexes.length,
         total_images: normalizedImages.length,
       },
     };

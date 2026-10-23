@@ -62,5 +62,8 @@ export class InferenceQueue {
 
 export const inferenceQueue = new InferenceQueue(
   Number.parseInt(process.env.INFERENCE_CONCURRENCY || "1", 10),
-  Number.parseInt(process.env.INFERENCE_MAX_QUEUE || "8", 10),
+  // 排队容量调大到 64：推理严格串行（内存安全的关键），
+  // 突发请求排队等待而不是返回 503 server_overloaded 打挂上游批次。
+  // 单个请求只是 prompt/URL 字符串，64 个排队的内存开销可忽略。
+  Number.parseInt(process.env.INFERENCE_MAX_QUEUE || "64", 10),
 );

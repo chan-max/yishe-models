@@ -60,16 +60,18 @@ export async function embed(texts: string[]): Promise<number[][]> {
   const pipe = await getPipeline();
   const results: number[][] = [];
 
-  // Process in batches for efficiency
+  // Process in batches for efficiency.
+  // @huggingface/transformers pipeline supports array input natively:
+  // pipe([text1, text2, ...]) performs batched inference in one pass,
+  // which is far faster than calling pipe(text) sequentially in a loop.
   const batchSize = config.maxBatchSize;
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize);
-    // Keep inference sequential. Promise.all here creates a large temporary
-    // tensor set when callers submit a large batch.
-    for (const text of batch) {
-      const output = await pipe(text, { pooling: 'mean', normalize: true });
-      results.push(Array.from(output.data) as number[]);
-    }
+    // bge 系列使用 CLS pooling（模型卡片明确要求），mean 会导致语义质量下降
+    const output = await pipe(batch, { pooling: 'cls', normalize: true });
+    // output: [batch, dim] tensor → tolist() gives number[][]
+    const vectors = output.tolist() as number[][];
+    results.push(...vectors);
   }
 
   return results;

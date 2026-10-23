@@ -5,10 +5,11 @@ export const config = {
   port: parseInt(process.env.PORT || "8900", 10),
   host: process.env.HOST || "0.0.0.0",
   nodeEnv: process.env.NODE_ENV || "development",
-  modelsDir: process.env.MODELS_DIR || "./models_new",
-  defaultModel: process.env.DEFAULT_MODEL || "Xenova/all-MiniLM-L6-v2",
+  modelsDir: process.env.MODELS_DIR || "./models",
+  defaultModel:
+    process.env.DEFAULT_MODEL || "onnx-community/bge-small-zh-v1.5-ONNX",
   defaultImageModel:
-    process.env.DEFAULT_IMAGE_MODEL || "Xenova/clip-vit-base-patch32",
+    process.env.DEFAULT_IMAGE_MODEL || "Xenova/siglip-base-patch16-224",
   maxBatchSize: parseInt(process.env.MAX_BATCH_SIZE || "128", 10),
   maxImageBatchSize: parseInt(process.env.MAX_IMAGE_BATCH_SIZE || "4", 10),
 };

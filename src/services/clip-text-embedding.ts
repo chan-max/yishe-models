@@ -23,6 +23,8 @@ async function getModelAndTokenizer() {
       config.defaultImageModel,
       {
         model_file_name: "text_model",
+        // 服务器内存有限（可用 <1G），fp16 将内存占用减半，检索质量损失可忽略
+        dtype: "fp16",
         progress_callback: (progress: any) => {
           if (progress.status === "downloading") {
             const pct = progress.progress ?? 0;
@@ -67,14 +69,19 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   const results: number[][] = [];
 
   for (const text of texts) {
-    const inputs = tokenizer([text], { padding: true, truncation: true });
+        // SigLIP 训练时文本固定 64 token，必须 max_length 填充，否则 EOS 池化位置错乱导致图文空间不对齐
+    const inputs = tokenizer([text], { padding: 'max_length', truncation: true });
     const output = await model(inputs);
 
-    if (!output.text_embeds) {
-      throw new Error("No text_embeds found in model output");
+    // SigLIP 与 CLIP 结构不同：text_model.onnx 输出 last_hidden_state + pooler_output，
+    // pooler_output（EOS 池化，768 维）即共享图文空间的文本嵌入（SigLIP 无独立投影头）。
+    // 注意 pooler_output 的 dims 是 [batch, 768]，data 是一维数组。
+    const pooled = (output as any).pooler_output;
+    if (!pooled) {
+      throw new Error("No pooler_output found in model output");
     }
 
-    const rawVector = Array.from(output.text_embeds.data) as number[];
+    const rawVector = Array.from(pooled.data) as number[];
     const l2Norm = Math.sqrt(rawVector.reduce((sum, val) => sum + val * val, 0));
     const normalizedVector = l2Norm > 0 ? rawVector.map((val) => val / l2Norm) : rawVector;
 
