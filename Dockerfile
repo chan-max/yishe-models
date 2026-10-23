@@ -16,7 +16,9 @@ COPY src/ ./src/
 # Build TypeScript
 RUN npm run build
 
-# Stage 2: Download models from hf-mirror.com (China-accessible)
+# Stage 2: Download models
+# Actions Runner (国外) 直连 HuggingFace 官方最快最稳
+# 国内服务器部署时如需走 hf-mirror，在 docker run/compose 里覆写 HF_REMOTE_HOST 即可
 FROM node:22-slim AS model-downloader
 
 WORKDIR /app
@@ -26,7 +28,7 @@ RUN npm install --ignore-scripts
 
 COPY scripts/download-models.js ./scripts/
 
-RUN HF_REMOTE_HOST=https://hf-mirror.com MODELS_DIR=/app/models node scripts/download-models.js
+RUN MODELS_DIR=/app/models node scripts/download-models.js
 
 # Stage 3: Production
 FROM node:22-slim

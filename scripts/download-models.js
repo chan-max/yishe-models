@@ -14,8 +14,9 @@ import {
 } from "@huggingface/transformers";
 import { mkdirSync } from "fs";
 
-// Use hf-mirror for China network
-env.remoteHost = process.env.HF_REMOTE_HOST || "https://hf-mirror.com";
+// 默认走 HuggingFace 官方（Actions Runner / 国外网络最快最稳）
+// 国内构建时覆写 HF_REMOTE_HOST=https://hf-mirror.com 即可
+env.remoteHost = process.env.HF_REMOTE_HOST || "https://huggingface.co";
 env.cacheDir = process.env.MODELS_DIR || "./models";
 
 const TEXT_MODEL = "onnx-community/bge-small-zh-v1.5-ONNX";
