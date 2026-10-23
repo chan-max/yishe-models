@@ -150,7 +150,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           # 模型镜像 2.1G, 国内服务器拉取+容器启动需要较长时间
           timeout: 900s
-          command_timeout: 3600s
+          command_timeout: 10800s
           envs: DEPLOY_PATH,DOCKER_USERNAME,IMAGE_TAG
           script: |
             # 设置部署路径
