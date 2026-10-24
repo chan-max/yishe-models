@@ -3,7 +3,17 @@ import {
   CLIPVisionModelWithProjection,
   RawImage,
 } from "@huggingface/transformers";
+import sharp from "sharp";
 import { config } from "../config.js";
+
+/** 单张图片下载超时，避免慢速/挂起的外链拖死整批 */
+const DOWNLOAD_TIMEOUT_MS = 20_000;
+/** 单张图片最大下载字节数，超大原图（如 700MB 星空图）直接判失败 */
+const MAX_DOWNLOAD_BYTES = 30 * 1024 * 1024;
+/** 解码像素上限，防止超大图解码时内存暴涨/卡死 */
+const MAX_INPUT_PIXELS = 40_000_000;
+/** 统一缩放到模型输入尺寸附近，解码小图更快 */
+const TARGET_SIZE = 448;
 
 let imageModel: any = null;
 let imageProcessor: any = null;
@@ -52,6 +62,42 @@ function looksLikeBase64Image(input: string): boolean {
   return normalized.length > 128 && /^[A-Za-z0-9+/]+={0,2}$/.test(normalized);
 }
 
+/** 统一解码为缩略图 RawImage：限制像素上限，避免超大图卡死 */
+async function decodeImageBuffer(buffer: Buffer): Promise<RawImage> {
+  const resized = await sharp(buffer, {
+    limitInputPixels: MAX_INPUT_PIXELS,
+    animated: false,
+    failOn: "none",
+  })
+    .rotate()
+    .resize(TARGET_SIZE, TARGET_SIZE, { fit: "inside", withoutEnlargement: true })
+    .flatten({ background: "#ffffff" })
+    .png()
+    .toBuffer();
+  const blob = new Blob([new Uint8Array(resized)], { type: "image/png" });
+  return RawImage.fromBlob(blob);
+}
+
+/** 下载远程图片（带超时 + 体积上限），再交给 sharp 缩放解码 */
+async function fetchRemoteImage(url: string): Promise<RawImage> {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    redirect: "follow",
+  });
+  if (!res.ok) {
+    throw new Error(`download failed: HTTP ${res.status}`);
+  }
+  const declared = Number(res.headers.get("content-length") || 0);
+  if (declared > MAX_DOWNLOAD_BYTES) {
+    throw new Error(`download too large: ${declared} bytes`);
+  }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length > MAX_DOWNLOAD_BYTES) {
+    throw new Error(`download too large: ${buffer.length} bytes`);
+  }
+  return decodeImageBuffer(buffer);
+}
+
 /** 把远程 URL / data URL / 裸 base64 统一转成 RawImage */
 async function toRawImage(input: string): Promise<RawImage> {
   const trimmed = input.trim();
@@ -72,11 +118,10 @@ async function toRawImage(input: string): Promise<RawImage> {
     buffer = Buffer.from(trimmed.replace(/\s/g, ""), "base64");
   } else {
     // 远程 URL（http/https/file）
-    return RawImage.fromURL(trimmed);
+    return fetchRemoteImage(trimmed);
   }
 
-  const blob = new Blob([new Uint8Array(buffer)], { type: mime });
-  return RawImage.fromBlob(blob);
+  return decodeImageBuffer(buffer);
 }
 
 /** 从 image_embeds 张量切出每条向量并 L2 归一化 */
